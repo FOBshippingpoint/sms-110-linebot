@@ -22,3 +22,11 @@ ngrok http 8000 # put localhost on the internet, you can change port number in a
 ```
 
 Set your linebot webhook address to ngrok address and have fun!
+
+## Authors
+
+- [@FOBshippingpoint](https://github.com/FOBshippingpoint)
+
+## License
+
+[MIT](https://choosealicense.com/licenses/mit/)
