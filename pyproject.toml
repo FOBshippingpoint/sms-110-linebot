@@ -8,6 +8,8 @@ authors = ["FOBshippingpoint <aulaulql4ql4xj6@gmail.com>"]
 python = "^3.10"
 line-bot-sdk = "^2.2.1"
 Flask = "^2.1.2"
+bs4 = "^0.0.1"
+pyimgur = "^0.6.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

@@ -1,4 +1,4 @@
-def create_confirm_twsms_info_context(twsms):
+def create_confirm_twsms_info_context(username, password):
     return {
         "type": "bubble",
         "body": {
@@ -32,7 +32,7 @@ def create_confirm_twsms_info_context(twsms):
                               },
                                 {
                                   "type": "text",
-                                  "text": twsms['account'],
+                                  "text": username,
                                   "size": "sm",
                                   "color": "#111111",
                                   "align": "end"
@@ -51,7 +51,7 @@ def create_confirm_twsms_info_context(twsms):
                                 },
                                 {
                                     "type": "text",
-                                    "text": twsms['password'],
+                                    "text": password,
                                     "size": "sm",
                                     "color": "#111111",
                                     "align": "end"
@@ -72,7 +72,8 @@ def create_confirm_twsms_info_context(twsms):
                     "action": {
                         "type": "postback",
                         "label": "正確",
-                        "data": f"event=confirm_twsms&account={twsms['account']}&password={twsms['password']}",
+                        "data": f"event=confirm_twsms&username={username}&password={password}",
+                        "displayText": "正確"
                     },
                     "height": "sm"
                 },
@@ -82,6 +83,7 @@ def create_confirm_twsms_info_context(twsms):
                         "type": "postback",
                         "label": "有誤",
                         "data": f"event=confirm_twsms",
+                        "displayText": "有誤"
                     },
                     "height": "sm"
                 }

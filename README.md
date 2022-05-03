@@ -3,7 +3,7 @@
 ## Requirements
 
 - poetry installed
-- sign up a line developer account
+- sign up a line developer username
 - set your own CHANNEL*ACCESS_TOKEN and CHANNEL_SECRET in \_config.ini*
 - sign up ngrok
 
@@ -22,6 +22,13 @@ ngrok http 8000 # put localhost on the internet, you can change port number in a
 ```
 
 Set your linebot webhook address to ngrok address and have fun!
+
+## Todo
+
+- delete expired users
+- edit message
+- create message template
+- ...
 
 ## Authors
 
