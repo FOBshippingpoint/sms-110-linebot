@@ -1,9 +1,6 @@
 from bs4 import BeautifulSoup
 import requests
 
-# crawl https://www.npa.gov.tw/ch/app/openData/artwebsite/data?module=artwebsite&serno=d08673f4-0775-4a09-b4d8-d47c2c4edca2&type=json to get the data
-# https://www.npa.gov.tw/ch/app/openData/artwebsite/data?module=artwebsite&serno=d08673f4-0775-4a09-b4d8-d47c2c4edca2&type=json
-
 
 def get_numbers():
     url = 'https://www.npa.gov.tw/ch/app/openData/artwebsite/data?module=artwebsite&serno=d08673f4-0775-4a09-b4d8-d47c2c4edca2&type=json'
