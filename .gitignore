@@ -1,2 +1,6 @@
 *.db
+*.env
 config.ini
+**/__pycache__
+**/static
+.vscode

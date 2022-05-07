@@ -22,3 +22,11 @@
   - 不輸入車牌
   - 簽名檔
   -
+
+## tomorrow TODO
+
+- msg template
+- twsms handling
+- peewee
+- user settings
+- change config.ini to env

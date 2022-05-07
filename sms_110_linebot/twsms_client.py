@@ -53,7 +53,11 @@ class TwsmsClient:
         r = requests.get(self.query_url, params=params)
         r = r.json()
         if r['code'] == '00000':
-            return int(r['point'])
+            return {
+                'success': True,
+                'quota': r['point'],
+                'error': None
+            }
         else:
             return self.__code_to_message(r['code'])
 
@@ -72,12 +76,17 @@ class TwsmsClient:
 
     def __code_to_message(self, code):
         if code == '00000':
-            return
+            return {
+                'success': True,
+                'error': None
+            }
         elif code in {'00011', '00012'}:
-            return '帳號或密碼錯誤'
-        elif code == '00020':
-            return '點數不足'
-        elif code == '00041':
-            return 'API未啟用'
+            return {
+                'success': False,
+                'error': '帳號或密碼錯誤'
+            }
         else:
-            raise Exception(CODE[code])
+            return {
+                'success': False,
+                'error': CODE[code]
+            }
