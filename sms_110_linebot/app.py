@@ -22,7 +22,7 @@ from msg_template import (
 from twsms_client import TwsmsClient
 from sms_num_crawler import crawl_mobiles
 from config import Config
-from shortten_msg import text_msg, text_quick_msg
+from shortten_msg import text_msg, text_postback_msg, text_quick_msg
 from database import create_tables, User, Mobile, Setting
 
 app = Flask(__name__)
@@ -279,6 +279,7 @@ def handle_message(event):
                 if report.license_plates:
                     sms_msg += "，車牌號碼" + "、".join(report.license_plates)
                 if report.image_links:
+                    # white space can split links highlighting in LINE.
                     sms_msg += "，附圖連結" + " 、".join(report.image_links)
                 sms_msg += " ，請派員處理。"
                 report.sms_msg = sms_msg
@@ -308,6 +309,7 @@ def handle_message(event):
                 user_session.action = ""
                 line_bot_api.reply_message(event.reply_token, text_msg("已取消"))
         elif action == "report.edit":
+            # Don't know how Twsms calculates "char" length.
             if len(text) > 335:
                 line_bot_api.reply_message(
                     event.reply_token, text_msg("簡訊長度不能超過335字，請重新輸入")
@@ -418,12 +420,13 @@ def handle_location(event):
 @handler.add(PostbackEvent)
 def handle_postback(event):
     data = dict(parse.parse_qsl(event.postback.data))
+    event = data["event"]
 
     user_id = g.user_id
     user_session = g.user_session
     action = user_session.action
 
-    if data["event"] == "confirm_twsms":
+    if event == "confirm_twsms":
         if "username" in data:
             # 正確
             user = User.get_or_none(user_id=user_id)
@@ -438,17 +441,36 @@ def handle_postback(event):
                 user.twsms_password = data["password"]
                 user.save()
             user_session.action = ""
-            # init twsms
             twsms = TwsmsClient(
                 username=data["username"], password=data["password"]
             )
-            twsms.get_balance()
             user_session.twsms_client = twsms
-            msg = text_quick_msg("台灣簡訊設定完成", ["報案"])
-            line_bot_api.reply_message(event.reply_token, msg)
-    elif action == "report.situation" and data["event"] == "change_page":
+            Thread(
+                target=validate_twsms,
+                args=(user_id, twsms),
+                daemon=True,
+            ).start()
+            line_bot_api.reply_message(event.reply_token, text_msg("驗證中..."))
+    elif action == "report.situation" and event == "change_page":
         msg = change_page_template(page_num=int(data["page_num"]))
         line_bot_api.reply_message(event.reply_token, msg)
+
+
+def validate_twsms(user_id, twsms):
+    """Validate twsms account."""
+    r = twsms.get_balance()
+    if r["success"]:
+        msg = text_quick_msg("台灣簡訊設定完成", ["報案"])
+    elif r["error"] == "帳號或密碼錯誤":
+        msg = text_postback_msg(
+            '您的台灣簡訊帳號密碼有誤，請"重新輸入"', [("重新輸入", "event=reinput_twsms")]
+        )
+    else:
+        msg = text_postback_msg(
+            '您的台灣簡訊驗證過程錯誤，請"重新驗證"或稍後再試', [("重新驗證", "event=revalidate_twsms")]
+        )
+
+    line_bot_api.push_message(user_id, msg)
 
 
 if __name__ == "__main__":

@@ -130,7 +130,7 @@ def confirm_twsms_info_template(username, password):
                         "action": {
                             "type": "postback",
                             "label": "有誤",
-                            "data": f"event=confirm_twsms",
+                            "data": "event=confirm_twsms",
                             "displayText": "有誤",
                         },
                         "height": "sm",
