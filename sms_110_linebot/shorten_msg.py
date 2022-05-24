@@ -22,7 +22,7 @@ def text_quick_msg(text, quick_reply_text_list):
 
 def text_postback_msg(text, postback_list):
     """Create TextSendMessage with PostbackAction
-    
+
     :param text: text message
     :param postback_list: list of postback action (label, data)
     """
@@ -32,3 +32,9 @@ def text_postback_msg(text, postback_list):
     ]
     msg = TextSendMessage(text=text, quick_reply=QuickReply(items=items))
     return msg
+
+
+def push_many_msg(line_bot_api, user_id, messages):
+    """Push many messages to user."""
+    for msg in messages:
+        line_bot_api.push_message(user_id, msg)

@@ -27,9 +27,10 @@ class Mobile(BaseModel):
 
 class Setting(BaseModel):
     user_id = ForeignKeyField(User, backref="settings")
+    send_by_twsms = BooleanField(default=True)
     ask_for_license_plates = BooleanField(default=True)
     ask_for_images = BooleanField(default=True)
-    signature = CharField()
+    signature = CharField(default="")
 
 
 def create_tables():

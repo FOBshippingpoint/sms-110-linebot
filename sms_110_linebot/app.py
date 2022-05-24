@@ -1,3 +1,4 @@
+from collections import defaultdict
 from flask import Flask, request, abort, g
 from urllib import parse
 from linebot.exceptions import LineBotApiError, InvalidSignatureError
@@ -13,16 +14,28 @@ from linebot.models import (
 import os
 import tempfile
 from threading import Thread
-from models.user_session import Report, UserSession
+from models.user_session import (
+    Report,
+    UserSession,
+    Setting as UserSessionSetting,
+)
 from msg_template import (
-    change_page_template,
+    please_enter_situation,
     confirm_twsms_info_template,
+    please_enter_twsms_username_template,
     send_location_template,
+    confirm_send_sms_template,
+    user_setting_template,
 )
 from twsms_client import TwsmsClient
 from sms_num_crawler import crawl_mobiles
 from config import Config
-from shortten_msg import text_msg, text_postback_msg, text_quick_msg
+from shorten_msg import (
+    push_many_msg,
+    text_msg,
+    text_postback_msg,
+    text_quick_msg,
+)
 from database import create_tables, User, Mobile, Setting
 
 app = Flask(__name__)
@@ -55,15 +68,22 @@ create_tables()
 # Create mobiles from existing database or from crawler, and if there is no
 # data in database, create new data.
 mobiles = {}
-for police_department, sms_number in crawl_mobiles():
-    mobile = Mobile.get_or_none(Mobile.police_department == police_department)
-    if mobile is None:
-        Mobile.create(
-            police_department=police_department, sms_number=sms_number
+if False:
+    for police_department, sms_number in crawl_mobiles():
+        mobile = Mobile.get_or_none(
+            Mobile.police_department == police_department
         )
-    elif mobile.sms_number != mobile:
-        mobile.sms_number = mobile
-        mobile.save()
+        if mobile is None:
+            Mobile.create(
+                police_department=police_department, sms_number=sms_number
+            )
+        elif mobile.sms_number != mobile:
+            mobile.sms_number = mobile
+            mobile.save()
+        mobiles[police_department] = sms_number
+else:
+    for mobile in Mobile.select():
+        mobiles[mobile.police_department] = mobile.sms_number
 
 
 def get_data_from_event(event):
@@ -81,6 +101,7 @@ def get_data_from_event(event):
             sessions[user_id].twsms_client = TwsmsClient(
                 user.twsms_username, user.twsms_password
             )
+        Setting.get_or_create(user_id=user_id)
     user_session = sessions[user_id]
 
     if isinstance(event, MessageEvent):
@@ -90,26 +111,31 @@ def get_data_from_event(event):
     return (user_id, text, user_session)
 
 
-@app.route("/liff/set-twsms-account", methods=["POST"])
-def set_twsms_account():
-    print("hello")
-    # token_type, access_token = request.headers.get('Authorization').split(' ')
-    # print(token_type, access_token)
-    # print(request.get_json())
-    # if token_type != 'Bearer' or token_type is None:
-    #     return
-    # r = requests.get('https://api.line.me/oauth2/v2.1/verify',
-    #                  params={'access_token': access_token})
-    # if r.status_code != 200:
-    #     return abort(400)
-    # # save to username, password to database
-    # data = request.get_json()
-    # user, created = User.get_or_create(user_id=data['user_id'],
-    #                                    twsms_username=data['username'], twsms_password=data['password'])
-    # if user:
-    #     # if exist, update
-    #     user.twsms_username = data['username']
-    #     user.twsms_password = data['password']
+# @app.route("/liff/set-twsms-account", methods=["POST"])
+# def set_twsms_account():
+#     print("hello")
+#     token_type, access_token = request.headers.get("Authorization").split(" ")
+#     print(token_type, access_token)
+#     print(request.get_json())
+#     if token_type != "Bearer" or token_type is None:
+#         return
+#     r = requests.get(
+#         "https://api.line.me/oauth2/v2.1/verify",
+#         params={"access_token": access_token},
+#     )
+#     if r.status_code != 200:
+#         return abort(400)
+#     # save to username, password to database
+#     data = request.get_json()
+#     user, created = User.get_or_create(
+#         user_id=data["user_id"],
+#         twsms_username=data["username"],
+#         twsms_password=data["password"],
+#     )
+#     if user:
+#         # if exist, update
+#         user.twsms_username = data["username"]
+#         user.twsms_password = data["password"]
 
 
 @app.route("/callback", methods=["POST"])
@@ -148,16 +174,19 @@ def callback():
 def handle_follow(event):
     user_id = g.user_id
     line_bot_api.reply_message(event.reply_token, text_msg("您好，歡迎使用簡訊違停報案助手"))
-
-    # TODO: 說明運作流程，還有要錢
-    line_bot_api.push_message(
-        user_id,
-        text_quick_msg(
-            '在使用前您必須先申請"台灣簡訊"帳號，由此去👉https://www.twsms.com/accjoin.php',
-            ["我已經有帳號了"],
+    messages = [
+        text_msg("我的任務是幫助您輕鬆用簡訊向警方報案違規停車"),
+        text_msg('在使用前您必須先申請"台灣簡訊"帳號，由此去👉https://www.twsms.com/accjoin.php'),
+        text_msg("台灣簡訊是一個能幫助您代發簡訊的付費服務，透過簡訊代發警方無法得知您的電話號碼"),
+        text_postback_msg(
+            "您也可以選擇透過自己的門號發送簡訊，由我替您快速生成報案簡訊",
+            [
+                ("我已經有帳號了", "event=already_had_account"),
+                ("我要用自己的門號發送簡訊", "event=send_by_myself"),
+            ],
         ),
-    )
-    line_bot_api.push_message(user_id, text_msg("請輸入您的台灣簡訊帳號"))
+    ]
+    push_many_msg(line_bot_api, user_id, messages)
 
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -166,66 +195,67 @@ def handle_message(event):
     text = g.text
     user_session = g.user_session
     action = user_session.action
+    setting = user_session.setting
 
+    if text == "設定":
+        msg = user_setting_template(setting)
+        line_bot_api.reply_message(event.reply_token, msg)
+    elif text.startswith("broadcast:"):
+        # broadcast message
+        # ! 測試用
+        broadcast_message = text[10:]
+        line_bot_api.broadcast(text_msg(broadcast_message))
     # 設定台灣簡訊帳號過程
-    if action.startswith("twsms_setting"):
+    elif action.startswith("twsms_setting"):
         if action == "twsms_setting.username":
             user_session.username = text
+            user_session.action = "twsms_setting.password"
             line_bot_api.reply_message(
                 event.reply_token, text_msg("請輸入您的台灣簡訊密碼")
             )
-            user_session.action = "twsms_setting.password"
         elif action == "twsms_setting.password":
             user_session.password = text
             msg = confirm_twsms_info_template(
                 username=user_session.username, password=user_session.password
             )
             line_bot_api.reply_message(event.reply_token, msg)
+    elif text == "重新設定台灣簡訊帳號密碼":
+        user_session.action = "twsms_setting.username"
+        msg = please_enter_twsms_username_template()
+        line_bot_api.reply_message(event.reply_token, msg)
+    elif text == "取消":
+        user_session.action = ""
+        line_bot_api.reply_message(event.reply_token, text_msg("已取消"))
+    elif action.startswith("set_user_setting"):
+        if action == "set_user_setting.signature":
+            setting.signature = text
+            user_session.action = ''
+            msg = text_msg("設定完成")
+            line_bot_api.reply_message(event.reply_token, msg)
+            Thread(
+                target=save_setting,
+                args=(user_id, setting),
+                daemon=True,
+            ).start()
+    if user_session.twsms_client is None:
+        line_bot_api.reply_message(event.reply_token, text_msg("您還沒有設定台灣簡訊帳號"))
 
-    elif text == "輸入帳密":  # 沒帳號or密碼
-        if user_session.twsms_client is not None:
-            line_bot_api.reply_message(
-                event.reply_token, text_quick_msg("帳號密碼已經存在", ["重新設定帳號密碼"])
-            )
-        else:
-            user_session.action = "twsms_setting.username"
-            line_bot_api.reply_message(
-                event.reply_token, text_msg("請輸入您的台灣簡訊帳號")
-            )
-
+        user_session.action = "twsms_setting.username"
+        msg = please_enter_twsms_username_template()
+        line_bot_api.push_message(user_id, msg)
+        return
+    # ==============Need Twsms account set==============================
     elif text == "報案":
         user_session.action = "report.address"
         msg = send_location_template()
         line_bot_api.reply_message(event.reply_token, msg)
-
-    elif text == "取消":
-        user_session.action = ""
-        line_bot_api.reply_message(event.reply_token, text_msg("已取消"))
-
     elif text == "查詢餘額":
-        if user_session.twsms_client is not None:
-            twsms = user_session.twsms_client
-            r = twsms.get_balance()
-            if r["success"]:
-                line_bot_api.reply_message(
-                    event.reply_token, text_msg(f'您還剩下{r["quota"]}點')
-                )
-            else:
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    text_msg(f'查詢餘額時發生錯誤，原因"{r["error"]}"，請稍後再試'),
-                )
-            return
-        # twsms not set
-
-    elif text == "重設帳密":
-        User.delete().where(User.user_id == user_id)
-        user_session.username = None
-        user_session.password = None
-        user_session.twsms_client = None
-        user_session.action = "twsms_setting.username"
-        line_bot_api.reply_message(event.reply_token, text_msg("請輸入您的台灣簡訊帳號"))
-
+        line_bot_api.reply_message(event.reply_token, text_msg("查詢餘額中..."))
+        Thread(
+            target=get_balance_and_reply,
+            args=(user_id, user_session.twsms_client),
+            daemon=True,
+        ).start()
     # 報案過程
     elif action.startswith("report"):
         # 車種
@@ -238,6 +268,9 @@ def handle_message(event):
             else:
                 msg = text_msg("請輸入以下車種\n" + "\n".join(CAR_TYPES) + '或"取消"')
                 line_bot_api.reply_message(event.reply_token, msg)
+
+                msg = text_quick_msg("請輸入車種", CAR_TYPES + ["取消"])
+                line_bot_api.push_message(user_id, msg)
         # 單輛/多輛
         elif action == "report.car_num":
             if text in CAR_NUMS:
@@ -246,7 +279,7 @@ def handle_message(event):
                 msg = text_quick_msg('請輸入"以空白分隔的車牌號碼"或"跳過"', ["跳過"])
                 line_bot_api.reply_message(event.reply_token, msg)
             else:
-                msg = text_msg("請輸入以下車種\n" + "\n".join(CAR_NUMS) + '或"取消"')
+                msg = text_quick_msg('請輸入單輛或多輛或"取消"', CAR_NUMS + ["取消"])
                 line_bot_api.reply_message(event.reply_token, msg)
         # 車牌號碼
         elif action == "report.license_plates":
@@ -255,10 +288,9 @@ def handle_message(event):
                 license_plates = text.split(" ")
                 user_session.report.license_plates = license_plates
             user_session.action = "report.situation"
-
-            msg = change_page_template(page_num=1)
+            msg = please_enter_situation(page_num=1)
             line_bot_api.reply_message(event.reply_token, msg)
-            # 違規情形
+        # 違規情形
         elif action == "report.situation":
             if text in SITUATIONS:
                 user_session.report.situation = text
@@ -266,50 +298,53 @@ def handle_message(event):
 
                 msg = text_quick_msg('請上傳照片或輸入"跳過"', ["跳過"])
                 line_bot_api.reply_message(event.reply_token, msg)
+            else:
+                msg = text_msg("請輸入以下違規情形\n" + "\n".join(SITUATIONS) + '或"取消"')
         elif action == "report.image":
             if text == "跳過" or text == "完成":
                 user_session.action = "report.preview"
-                # generate message
                 report = user_session.report
-                sms_msg = report.address + "有"
-                if report.car_num != "單輛":
-                    sms_msg += "多輛"
-                sms_msg += report.car_type
-                sms_msg += report.situation
-                if report.license_plates:
-                    sms_msg += "，車牌號碼" + "、".join(report.license_plates)
-                if report.image_links:
-                    # white space can split links highlighting in LINE.
-                    sms_msg += "，附圖連結" + " 、".join(report.image_links)
-                sms_msg += " ，請派員處理。"
-                report.sms_msg = sms_msg
-                msg = text_quick_msg(
-                    "簡訊內容\n"
-                    + sms_msg
-                    + f'\n即將傳送至"{report.police_department}"({report.mobile})',
-                    ["發送", "編輯", "取消"],
+                report.sms_msg = create_sms_msg(report)
+
+                msg = confirm_send_sms_template(
+                    police_department=report.police_department,
+                    mobile=report.mobile,
+                    sms_msg=report.sms_msg,
                 )
                 line_bot_api.reply_message(event.reply_token, msg)
         elif action == "report.preview":
             if text == "發送" or text == "重新發送":
                 twsms = user_session.twsms_client
                 report = user_session.report
-                r = twsms.send_message(report.sms_msg, "0953907292")
-                if r["success"]:
-                    msg = text_msg("報案簡訊已發送！")
-                else:
-                    msg = text_quick_msg(
-                        f'報案簡訊發送失敗，原因"{r["error"]}"，是否要"重新發送"？', ["重新發送", "取消"]
+                if len(report.sms_msg) > 335:
+                    line_bot_api.reply_message(
+                        event.reply_token, text_msg("簡訊長度不能超過335字，請重新輸入")
                     )
-                line_bot_api.reply_message(event.reply_token, msg)
+                    return
+
+                line_bot_api.reply_message(
+                    event.reply_token, text_msg("發送中...")
+                )
+                Thread(
+                    target=send_sms_msg_and_reply,
+                    args=(user_id, twsms, report.mobile, report.sms_msg),
+                    daemon=True,
+                ).start()
             elif text == "編輯":
                 user_session.action = "report.edit"
-                msg = text_quick_msg('請輸入簡訊內容，或"取消"', ["取消"])
+                line_bot_api.reply_message(event.reply_token, report.sms_msg)
+                messages = [
+                    text_msg("您可以複製以上簡訊內容"),
+                    text_quick_msg('請輸入新的簡訊內容，或"取消"', ["取消"]),
+                ]
+                push_many_msg(line_bot_api, user_id, messages)
             elif text == "取消":
                 user_session.action = ""
                 line_bot_api.reply_message(event.reply_token, text_msg("已取消"))
         elif action == "report.edit":
             # Don't know how Twsms calculates "char" length.
+            # check Twsms API DOCs
+            # 👉https://www.twsms.com/dl/TwSMS_SMS_API_4.0.pdf
             if len(text) > 335:
                 line_bot_api.reply_message(
                     event.reply_token, text_msg("簡訊長度不能超過335字，請重新輸入")
@@ -318,11 +353,11 @@ def handle_message(event):
                 report = user_session.report
                 report.sms_msg = text
                 user_session.action = "report.preview"
-                msg = text_quick_msg(
-                    "簡訊內容\n"
-                    + report.sms_msg
-                    + f'\n即將傳送至"{report.police_department}"({report.mobile})',
-                    ["發送", "編輯", "取消"],
+
+                msg = confirm_send_sms_template(
+                    police_department=report.police_department,
+                    mobile=report.mobile,
+                    sms_msg=report.sms_msg,
                 )
                 line_bot_api.reply_message(event.reply_token, msg)
 
@@ -339,15 +374,15 @@ def handle_image(event):
         # 盡快回覆LINE平台正確的HTTP狀態碼
         # https://engineering.linecorp.com/zh-hant/blog/line-device-10/
         # upload image will take times
+        line_bot_api.reply_message(event.reply_token, text_msg("上傳中..."))
         Thread(
-            target=upload_image,
+            target=upload_image_and_reply,
             args=(message_content, user_id, user_session),
             daemon=True,
         ).start()
-        line_bot_api.reply_message(event.reply_token, text_msg("上傳中..."))
 
 
-def upload_image(message_content, user_id, user_session):
+def upload_image_and_reply(message_content, user_id, user_session):
     """Upload image to imgur and push message to user."""
     ext = "jpg"
     with tempfile.NamedTemporaryFile(
@@ -419,17 +454,27 @@ def handle_location(event):
 
 @handler.add(PostbackEvent)
 def handle_postback(event):
-    data = dict(parse.parse_qsl(event.postback.data))
-    event = data["event"]
+    d = dict(parse.parse_qsl(event.postback.data))
+    data = defaultdict(lambda: None, d)
+    my_event = data["event"]
 
     user_id = g.user_id
     user_session = g.user_session
     action = user_session.action
+    setting = user_session.setting
 
-    if event == "confirm_twsms":
-        if "username" in data:
-            # 正確
-            user = User.get_or_none(user_id=user_id)
+    if my_event == "already_had_account":
+        if user_session.twsms_client is None:
+            user_session.action = "twsms_setting.username"
+            msg = please_enter_twsms_username_template()
+            line_bot_api.reply_message(event.reply_token, msg)
+        else:
+            msg = text_quick_msg("您可以開始報案囉！", ["報案"])
+            line_bot_api.reply_message(event.reply_token, msg)
+    elif my_event.startswith("confirm_twsms"):
+        # 正確
+        if my_event == "confirm_twsms.correct":
+            user = User.get_or_none(User.user_id == user_id)
             if user is None:
                 User.create(
                     user_id=user_id,
@@ -445,18 +490,65 @@ def handle_postback(event):
                 username=data["username"], password=data["password"]
             )
             user_session.twsms_client = twsms
+            line_bot_api.reply_message(event.reply_token, text_msg("驗證中..."))
             Thread(
-                target=validate_twsms,
+                target=validate_twsms_and_reply,
                 args=(user_id, twsms),
                 daemon=True,
             ).start()
-            line_bot_api.reply_message(event.reply_token, text_msg("驗證中..."))
-    elif action == "report.situation" and event == "change_page":
-        msg = change_page_template(page_num=int(data["page_num"]))
+        # 有誤
+        elif my_event == "confirm_twsms.incorrect":
+            user_session.action = "twsms_setting.username"
+            msg = please_enter_twsms_username_template()
+            line_bot_api.reply_message(event.reply_token, msg)
+    elif my_event == "set_user_setting":
+        if data["send_by_twsms"] is not None:
+            setting.send_by_twsms = (
+                True if data["send_by_twsms"] == "true" else False
+            )
+        elif data["ask_for_license_plates"] is not None:
+            setting.ask_for_license_plates = (
+                True if data["ask_for_license_plates"] == "true" else False
+            )
+        elif data["ask_for_images"] is not None:
+            setting.ask_for_images = (
+                True if data["ask_for_images"] == "true" else False
+            )
+
+        msg = text_msg("設定完成")
+        line_bot_api.reply_message(event.reply_token, msg)
+        Thread(
+            target=save_setting, args=(user_id, setting), daemon=True
+        ).start()
+    elif my_event == "set_user_setting.signature":
+        user_session.action = "set_user_setting.signature"
+        msg = text_msg("請輸入要附加的簽名檔：")
+        line_bot_api.reply_message(event.reply_token, msg)
+    elif my_event == "send_by_myself":
+        msg = text_quick_msg("報案助手已設定為簡訊產生模式，可以開始報案囉！", ["報案"])
+        line_bot_api.reply_message(event.reply_token, msg)
+
+        new_setting = UserSessionSetting()
+        new_setting.send_by_twsms = False
+        user_session.setting = new_setting
+        Thread(
+            target=save_setting,
+            args=(user_id, new_setting),
+            daemon=True,
+        ).start()
+    elif my_event == "get_balance":
+        line_bot_api.reply_message(event.reply_token, text_msg("查詢餘額中..."))
+        Thread(
+            target=get_balance_and_reply,
+            args=(user_id, user_session.twsms_client),
+            daemon=True,
+        ).start()
+    elif action == "report.situation" and my_event == "change_page":
+        msg = please_enter_situation(page_num=int(data["page_num"]))
         line_bot_api.reply_message(event.reply_token, msg)
 
 
-def validate_twsms(user_id, twsms):
+def validate_twsms_and_reply(user_id, twsms):
     """Validate twsms account."""
     r = twsms.get_balance()
     if r["success"]:
@@ -471,6 +563,54 @@ def validate_twsms(user_id, twsms):
         )
 
     line_bot_api.push_message(user_id, msg)
+
+
+def get_balance_and_reply(user_id, twsms):
+    r = twsms.get_balance()
+    if r["success"]:
+        msg = text_msg(f"您還剩下{r['quota']}點")
+    else:
+        msg = text_postback_msg(
+            f'查詢餘額發生錯誤，原因"{r["error"]}"，請稍後再試', [("查詢餘額", "event=get_balance")]
+        )
+    line_bot_api.push_message(user_id, msg)
+
+
+def send_sms_msg_and_reply(user_id, twsms, mobile, sms_msg):
+    r = twsms.send_message(sms_msg, config.phone_number)
+    if r["success"]:
+        msg = text_msg("報案簡訊發送成功！")
+    else:
+        msg = text_quick_msg(
+            f'報案簡訊發送失敗，原因"{r["error"]}"，請稍候再試', ["重新發送", "取消"]
+        )
+    line_bot_api.push_message(user_id, msg)
+
+
+def create_sms_msg(report):
+    sms_msg = report.address + "有"
+    if report.car_num != "單輛":
+        sms_msg += "多輛"
+    sms_msg += report.car_type
+    sms_msg += report.situation
+    if report.license_plates:
+        sms_msg += "，車牌號碼" + "、".join(report.license_plates)
+    if report.image_links:
+        # white space can split links highlighting in LINE.
+        sms_msg += "，附圖連結" + " 、".join(report.image_links)
+        sms_msg += " ，請派員處理。"
+    else:
+        sms_msg += "，請派員處理。"
+    return sms_msg
+
+
+def save_setting(user_id, session_setting):
+    setting = Setting.get_or_create(user_id=user_id)
+    setting.send_by_twsms = session_setting.send_by_twsms
+    setting.ask_for_license_plates = session_setting.ask_for_license_plates
+    setting.ask_for_images = session_setting.ask_for_images
+    setting.signature = session_setting.signature
+    setting.save()
 
 
 if __name__ == "__main__":

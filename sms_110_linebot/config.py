@@ -4,7 +4,7 @@ import os
 from linebot import LineBotApi, WebhookHandler, WebhookParser
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(".env")
 
 
 class Singleton(type):
@@ -22,12 +22,7 @@ class Config(metaclass=Singleton):
     def __init__(self, file="config.ini"):
         self.config = configparser.ConfigParser()
         self.check_file(file)
-        # self.LINE_CHANNEL_ACCESS_TOKEN = self.config["line"][
-        #     "channel_access_token"
-        # ]
-        # self.LINE_CHANNEL_SECRET = self.config["line"]["channel_secret"]
-        # self.CLIENT_ID = self.config["imgur"]["client_id"]
-        
+
         # environment variables
         self.LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
         self.LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
@@ -37,6 +32,7 @@ class Config(metaclass=Singleton):
         self.CAR_TYPES = self.config["report"]["car_types"].split(" ")
         self.CAR_NUMS = self.config["report"]["car_nums"].split(" ")
         self.SITUATIONS = self.config["report"]["situations"].split(" ")
+        self.USER_GUIDE_LINK = self.config["link"]["user_guide_link"]
         self.phone_number = self.config["my"]["phone_number"]
 
         self.handler = None

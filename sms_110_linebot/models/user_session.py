@@ -6,12 +6,14 @@ class UserSession:
         twsms_client=None,
         action="",
         report=None,
+        setting=None,
     ):
         self.username = username
         self.password = password
         self.twsms_client = twsms_client
         self.action = action
         self.report = Report() if report is None else report
+        self.setting = Setting() if setting is None else setting
 
 
 class Report:
@@ -40,3 +42,18 @@ class Report:
         self.license_plates = license_plates
         self.image_links = image_links
         self.sms_msg = sms_msg
+
+
+class Setting:
+    def __init__(
+        self,
+        send_by_twsms=True,
+        ask_for_license_plates=True,
+        ask_for_images=True,
+        signature="",
+        setting=None
+    ):
+        self.send_by_twsms = send_by_twsms
+        self.ask_for_license_plates = ask_for_license_plates
+        self.ask_for_images = ask_for_images
+        self.signature = signature
