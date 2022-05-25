@@ -9,12 +9,35 @@ from linebot.models import (
 )
 from config import Config
 from sms_110_linebot.models.user_session import Setting
-from sms_110_linebot.shorten_msg import text_msg, text_quick_msg
+from sms_110_linebot.shorten_msg import (
+    text_msg,
+    text_quick_msg,
+    text_postback_msg,
+)
 
 config = Config()
 SITUATIONS = config.SITUATIONS
 MAX_BUTTON_NUM = 13
 USER_GUIDE_LINK = config.USER_GUIDE_LINK
+
+
+def welcome_template():
+    messages = [
+        text_msg("您好，歡迎使用簡訊違停報案助手"),
+        text_msg("我的任務是幫助您輕鬆用簡訊向警方報案違規停車"),
+        text_msg(
+            '在使用前您必須先申請"台灣簡訊"帳號，申請帳號請點選：https://www.twsms.com/accjoin.php'
+        ),
+        text_msg("台灣簡訊是一個能幫助您代發簡訊的付費服務，透過簡訊代發警方無法得知您的電話號碼"),
+        text_postback_msg(
+            "您也可以選擇透過自己的門號發送簡訊，由我替您快速生成報案簡訊",
+            [
+                ("我已經有帳號了", "event=already_had_account"),
+                ("我要用自己的門號發送簡訊", "event=send_by_myself"),
+            ],
+        ),
+    ]
+    return messages
 
 
 def please_enter_twsms_username_template():
@@ -56,8 +79,63 @@ def send_location_template():
     return msg
 
 
-def default_template():
-    msg = text_quick_msg('若需要使用說明，請輸入"說明"', ["說明"])
+def menu_template():
+    msg = FlexSendMessage(
+        alt_text="主選單",
+        contents={
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "主選單",
+                        "weight": "bold",
+                        "size": "xl",
+                    }
+                ],
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "報案",
+                            "text": "報案",
+                        },
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "設定",
+                            "text": "設定",
+                        },
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "說明",
+                            "text": "說明",
+                        },
+                    },
+                ],
+                "flex": 0,
+            },
+        },
+    )
     return msg
 
 
@@ -96,9 +174,11 @@ def user_setting_template(setting: Setting):
                             "type": "postback",
                             "label": negation_text(setting.send_by_twsms)
                             + "簡訊代發",
-                            "data": "event=set_user_setting.send_by_twsms"
+                            "data": "event=set_user_setting"
                             + "&send_by_twsms="
                             + negation(setting.send_by_twsms),
+                            "displayText": negation_text(setting.send_by_twsms)
+                            + "簡訊代發",
                         },
                     },
                     {
@@ -112,9 +192,13 @@ def user_setting_template(setting: Setting):
                             )
                             + "詢問輸入車牌",
                             "data": "event="
-                            + "set_user_setting.ask_for_license_plates"
+                            + "set_user_setting"
                             + "&ask_for_license_plates="
                             + negation(setting.ask_for_license_plates),
+                            "displayText": negation_text(
+                                setting.ask_for_license_plates
+                            )
+                            + "詢問輸入車牌",
                         },
                     },
                     {
@@ -125,9 +209,13 @@ def user_setting_template(setting: Setting):
                             "type": "postback",
                             "label": negation_text(setting.ask_for_images)
                             + "詢問上傳照片",
-                            "data": "event=set_user_setting.ask_for_images"
+                            "data": "event=set_user_setting"
                             + "&ask_for_images="
                             + negation(setting.ask_for_images),
+                            "displayText": negation_text(
+                                setting.ask_for_images
+                            )
+                            + "詢問上傳照片",
                         },
                     },
                     {
@@ -137,8 +225,21 @@ def user_setting_template(setting: Setting):
                         "action": {
                             "type": "postback",
                             "label": "編輯簡訊簽名檔",
-                            "data": "event=set_user_setting.signature"
+                            "data": "event=set_user_setting.signature",
+                            "displayText": "編輯簡訊簽名檔",
                         },
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "action": {
+                            "type": "postback",
+                            "label": "重設台灣簡訊帳號密碼",
+                            "data": "event=set_user_setting.reset_twsms",
+                            "displayText": "重設台灣簡訊帳號密碼",
+                        },
+                        "color": "#FA4A4D",
                     },
                 ],
                 "flex": 0,
