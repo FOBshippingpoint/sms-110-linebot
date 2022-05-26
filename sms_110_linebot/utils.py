@@ -9,14 +9,41 @@ def get_next_report_action(current_action, setting: UserSessionSetting):
         "report.license_plates",
         "report.situation",
         "report.images",
-        "report.preview",
     ]
     if setting.ask_for_license_plates:
         actions.remove("report.license_plates")
     if setting.ask_for_images:
         actions.remove("report.images")
-    next_action = actions.index(current_action) + 1
-    return next_action if next_action < len(actions) else None
+
+    if current_action == "report.images" and setting.send_by_twsms:
+        actions += ["report.preview"]
+    else:
+        actions += ["report.copy"]
+
+    next_action_index = actions.index(current_action) + 1
+    return (
+        actions[next_action_index] if next_action_index < len(actions) else ""
+    )
+
+
+def find_police_department_mobile_by_address(mobiles, address):
+    for police_department, mobile in mobiles.items():
+        # 地區是警局名稱前二字
+        location = police_department[:2]
+        if location in address or location.replace("臺", "台") in address:
+            print(
+                "address: ",
+                address,
+                ", match: ",
+                police_department,
+                mobile,
+            )
+
+            word = "台灣"
+            from_ = address.find(word)
+            if from_ != -1:
+                address = address[from_ + len(word) :]
+            return police_department, mobile
 
 
 def create_sms_msg(report, signature):

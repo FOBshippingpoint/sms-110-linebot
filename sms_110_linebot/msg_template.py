@@ -231,13 +231,24 @@ def user_setting_template(setting: Setting):
                     },
                     {
                         "type": "button",
-                        "style": "primary",
+                        "style": "link",
                         "height": "sm",
                         "action": {
                             "type": "postback",
                             "label": "重設台灣簡訊帳號密碼",
                             "data": "event=set_user_setting.reset_twsms",
                             "displayText": "重設台灣簡訊帳號密碼",
+                        },
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "action": {
+                            "type": "postback",
+                            "label": "重置所有設定",
+                            "data": "event=set_user_setting.reset_everything",
+                            "displayText": "重置所有設定",
                         },
                         "color": "#FA4A4D",
                     },
@@ -263,7 +274,7 @@ def negation_text(current_status):
         return "開啟"
 
 
-def confirm_twsms_info_template(username, password):
+def confirm_twsms_template(username, password):
     msg = FlexSendMessage(
         alt_text="請確認您的帳號密碼是否正確？",
         contents={

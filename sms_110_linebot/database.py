@@ -16,8 +16,8 @@ class BaseModel(Model):
 
 class User(BaseModel):
     user_id = CharField(unique=True)
-    twsms_username = CharField()
-    twsms_password = CharField()
+    twsms_username = CharField(default='')
+    twsms_password = CharField(default='')
 
 
 class Mobile(BaseModel):

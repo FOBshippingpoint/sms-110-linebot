@@ -9,6 +9,10 @@
 - doc
   - privacy policy
   - terms of use
+- ?
+  - UserSession.username & UserSession.password may not need.
+- bug
+  - 車牌 跳過
 
 ```python
 # legacy
