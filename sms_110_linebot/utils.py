@@ -2,28 +2,38 @@ from sms_110_linebot.models.user_session import Setting as UserSessionSetting
 
 
 def get_next_report_action(current_action, setting: UserSessionSetting):
-    actions = [
-        "report.address",
-        "report.car_type",
-        "report.car_num",
-        "report.license_plates",
-        "report.situation",
-        "report.images",
-    ]
-    if setting.ask_for_license_plates:
-        actions.remove("report.license_plates")
-    if setting.ask_for_images:
-        actions.remove("report.images")
-
-    if current_action == "report.images" and setting.send_by_twsms:
-        actions += ["report.preview"]
+    if current_action == "report.address":
+        return "report.car_type"
+    elif current_action == "report.car_type":
+        return "report.car_num"
+    elif current_action == "report.car_num":
+        if setting.ask_for_license_plates:
+            return "report.license_plates"
+        else:
+            return "report.situation"
+    elif current_action == "report.license_plates":
+        return "report.situation"
+    elif current_action == "report.situation":
+        if setting.ask_for_images:
+            return "report.upload_image"
+        else:
+            if setting.send_by_twsms:
+                return "report.preview"
+            else:
+                return "report.copy"
+    elif current_action == "report.upload_image":
+        if setting.send_by_twsms:
+            return "report.preview"
+        else:
+            return "report.copy"
+    elif current_action == "report.preview":
+        return ""
+    elif current_action == "report.copy":
+        return ""
+    elif current_action == "report.edit":
+        return "report.preview"
     else:
-        actions += ["report.copy"]
-
-    next_action_index = actions.index(current_action) + 1
-    return (
-        actions[next_action_index] if next_action_index < len(actions) else ""
-    )
+        return ""
 
 
 def find_police_department_mobile_by_address(mobiles, address):
@@ -43,7 +53,7 @@ def find_police_department_mobile_by_address(mobiles, address):
             from_ = address.find(word)
             if from_ != -1:
                 address = address[from_ + len(word) :]
-            return police_department, mobile
+            return police_department, mobile, address
 
 
 def create_sms_msg(report, signature):
@@ -54,12 +64,21 @@ def create_sms_msg(report, signature):
     sms_msg += report.situation
     if report.license_plates:
         sms_msg += "，車牌號碼" + "、".join(report.license_plates)
-    if report.images_links:
+    if report.image_links:
         # white space can split links highlighting in LINE.
-        sms_msg += "，附圖連結" + " 、".join(report.images_links)
+        sms_msg += "，附圖連結" + " 、".join(report.image_links)
         sms_msg += " ，請派員處理。"
     else:
         sms_msg += "，請派員處理。"
     if signature != "":
         sms_msg += "(" + signature + ")"
     return sms_msg
+
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst.
+
+    link: https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks?page=1&tab=scoredesc#tab-top
+    """
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]

@@ -51,7 +51,6 @@ class Setting:
         ask_for_license_plates=True,
         ask_for_images=True,
         signature="",
-        setting=None
     ):
         self.send_by_twsms = send_by_twsms
         self.ask_for_license_plates = ask_for_license_plates

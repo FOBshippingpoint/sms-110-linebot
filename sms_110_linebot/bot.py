@@ -1,5 +1,5 @@
 from collections import defaultdict
-from flask import Flask, request, abort, g, session
+from flask import Blueprint, current_app, request, abort, g, session
 from urllib import parse
 from linebot.exceptions import LineBotApiError, InvalidSignatureError
 from linebot.models import (
@@ -37,7 +37,6 @@ from sms_110_linebot.utils import (
     create_sms_msg,
 )
 from twsms_client import TwsmsClient
-from sms_num_crawler import crawl_mobiles
 from config import Config
 from shorten_msg import (
     push_many_msg,
@@ -45,9 +44,10 @@ from shorten_msg import (
     text_postback_msg,
     text_quick_msg,
 )
-from sms_110_linebot.db import create_tables, User, Mobile, Setting
+from sms_110_linebot.db import User, Setting, Mobile
 
-app = Flask(__name__)
+bp = Blueprint("bot", __name__, url_prefix="/callback")
+
 
 config = Config()
 line_bot_api = config.line_bot_api
@@ -58,41 +58,17 @@ parser = config.parser
 CAR_TYPES = config.CAR_TYPES
 CAR_NUMS = config.CAR_NUMS
 SITUATIONS = config.SITUATIONS
-
-static_tmp_path = os.path.join(os.path.dirname(__file__), "static", "tmp")
-
-
-def make_static_tmp_dir():
-    """Make static tmp dir for image uploads."""
-    try:
-        os.makedirs(static_tmp_path)
-    except FileExistsError:
-        pass
+STATIC_TEMP_PATH = current_app.config["STATIC_TEMP_PATH"]
 
 
-make_static_tmp_dir()
-create_tables()
+def get_mobiles():
+    mobiles = {}
+    for mobile in Mobile.select().dicts():
+        mobiles[mobile["police_department"]] = mobile["sms_number"]
+    return mobiles
 
 
-# Create mobiles from existing database or from crawler, and if there is no
-# data in database, create new data.
-# mobiles = {}
-# if False:
-#     for police_department, sms_number in crawl_mobiles():
-#         mobile = Mobile.get_or_none(
-#             Mobile.police_department == police_department
-#         )
-#         if mobile is None:
-#             Mobile.create(
-#                 police_department=police_department, sms_number=sms_number
-#             )
-#         elif mobile.sms_number != mobile:
-#             mobile.sms_number = mobile
-#             mobile.save()
-#         mobiles[police_department] = sms_number
-# else:
-#     for mobile in Mobile.select():
-#         mobiles[mobile.police_department] = mobile.sms_number
+MOBILES = get_mobiles()
 
 
 def get_data_from_event(event):
@@ -102,7 +78,6 @@ def get_data_from_event(event):
     """
     user_id = event.source.user_id
     text = None
-    # If user is not in sessions, create a new session.
     if user_id not in session:
         user, created = User.get_or_create(user_id=user_id)
         if created:
@@ -135,12 +110,12 @@ def get_data_from_event(event):
     return (user_id, text, user_session)
 
 
-@app.route("/callback", methods=["POST"])
+@bp.route("/", methods=["POST"])
 def callback():
     signature = request.headers["X-Line-Signature"]
 
     body = request.get_data(as_text=True)
-    app.logger.info("Request body: " + body)
+    bp.logger.info("Request body: " + body)
 
     try:
         # Set g data(user_id, text, user_session) from event
@@ -409,7 +384,9 @@ def upload_image_and_reply(message_content, user_id, user_session):
     """Upload image to imgur and push message to user."""
     ext = "jpg"
     with tempfile.NamedTemporaryFile(
-        dir=static_tmp_path, prefix=ext + "-", delete=False
+        dir=STATIC_TEMP_PATH,
+        prefix=ext + "-",
+        delete=False,
     ) as tf:
         for chunk in message_content.iter_content():
             tf.write(chunk)
@@ -440,7 +417,7 @@ def handle_location(event):
 
     if action == "report.address":
         address = event.message.address
-        result = find_police_department_mobile_by_address(mobiles, address)
+        result = find_police_department_mobile_by_address(MOBILES, address)
         if result is None:
             user_session.action = ""
             msg = text_msg("您的所在位置無法使用簡訊報案功能")
@@ -536,7 +513,7 @@ def handle_postback(event):
             line_bot_api.reply_message(event.reply_token, msg)
             Thread(
                 target=delete_user_data_and_reply,
-                args=(user_id, sessions),
+                args=(user_id),
                 daemon=True,
             ).start()
             return
@@ -635,18 +612,14 @@ def save_setting(user_id, session_setting: UserSessionSetting):
     setting.save()
 
 
-def delete_user_data_and_reply(user_id, sessions):
+def delete_user_data_and_reply(user_id):
     user = User.get_or_none(User.user_id == user_id)
     if user is not None:
         user.delete_instance()
     setting = Setting.get_or_none(Setting.user_id == user_id)
     if setting is not None:
         setting.delete_instance()
-    del sessions[user_id]
+    session.pop("user_id", None)
 
     msg = text_msg("已重置")
     line_bot_api.push_message(user_id, msg)
-
-
-if __name__ == "__main__":
-    app.run(host="localhost", port=8000, threaded=True)

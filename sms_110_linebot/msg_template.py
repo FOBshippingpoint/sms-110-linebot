@@ -9,11 +9,7 @@ from linebot.models import (
 )
 from config import Config
 from sms_110_linebot.models.user_session import Setting
-from sms_110_linebot.shorten_msg import (
-    text_msg,
-    text_quick_msg,
-    text_postback_msg,
-)
+from sms_110_linebot.shorten_msg import text_msg, button_msg
 
 config = Config()
 SITUATIONS = config.SITUATIONS
@@ -29,12 +25,21 @@ def welcome_template():
             '在使用前您必須先申請"台灣簡訊"帳號，申請帳號請點選：https://www.twsms.com/accjoin.php'
         ),
         text_msg("台灣簡訊是一個能幫助您代發簡訊的付費服務，透過簡訊代發警方無法得知您的電話號碼"),
-        text_postback_msg(
-            "您也可以選擇透過自己的門號發送簡訊，由我替您快速生成報案簡訊",
-            [
-                ("我已經有帳號了", "event=already_had_account"),
-                ("我要用自己的門號發送簡訊", "event=send_by_myself"),
-            ],
+        text_msg("您也可以選擇透過自己的門號發送簡訊，由我替您快速生成報案簡訊"),
+        button_msg(
+            title="是否要啟用簡訊代發功能",
+            button_list=(
+                {
+                    "type": "postback",
+                    "text": "我已經有帳號了",
+                    "data": "event=already_had_account",
+                },
+                {
+                    "type": "postback",
+                    "label": "我要用自己的門號發送簡訊",
+                    "data": "event=send_by_myself",
+                },
+            ),
         ),
     ]
     return messages
@@ -45,7 +50,7 @@ def please_enter_twsms_username_template():
     return msg
 
 
-def please_enter_situation(page_num):
+def please_enter_situation_template(page_num):
     sliced = SITUATIONS[
         (page_num - 1) * (MAX_BUTTON_NUM - 1) : page_num * (MAX_BUTTON_NUM - 1)
     ]
@@ -71,7 +76,7 @@ def please_enter_situation(page_num):
 
 def send_location_template():
     msg = TextSendMessage(
-        text='請用手機按下方的"傳送我的所在位置"按鈕',
+        text='請用手機按下方的"傳送我的所在位置"按鈕，再按下右上角的"分享"',
         quick_reply=QuickReply(
             items=[QuickReplyButton(action=LocationAction(label="傳送我的所在位置"))]
         ),
@@ -80,61 +85,45 @@ def send_location_template():
 
 
 def menu_template():
-    msg = FlexSendMessage(
-        alt_text="主選單",
-        contents={
-            "type": "bubble",
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": [
-                    {
-                        "type": "text",
-                        "text": "主選單",
-                        "weight": "bold",
-                        "size": "xl",
-                    }
-                ],
+    msg = button_msg(
+        title="主選單",
+        button_list=(
+            {
+                "style": "primary",
+                "type": "message",
+                "text": "報案",
             },
-            "footer": {
-                "type": "box",
-                "layout": "vertical",
-                "spacing": "sm",
-                "contents": [
-                    {
-                        "type": "button",
-                        "style": "primary",
-                        "height": "sm",
-                        "action": {
-                            "type": "message",
-                            "label": "報案",
-                            "text": "報案",
-                        },
-                    },
-                    {
-                        "type": "button",
-                        "style": "primary",
-                        "height": "sm",
-                        "action": {
-                            "type": "message",
-                            "label": "設定",
-                            "text": "設定",
-                        },
-                    },
-                    {
-                        "type": "button",
-                        "style": "primary",
-                        "height": "sm",
-                        "action": {
-                            "type": "message",
-                            "label": "說明",
-                            "text": "說明",
-                        },
-                    },
-                ],
-                "flex": 0,
+            {
+                "style": "primary",
+                "type": "message",
+                "text": "設定",
             },
-        },
+            {
+                "style": "primary",
+                "type": "message",
+                "text": "說明",
+            },
+        ),
+    )
+    return msg
+
+
+def are_you_sure_to_reset_everything_template():
+    msg = button_msg(
+        title="確定要重置所有設定嗎？",
+        button_list=(
+            {
+                "type": "postback",
+                "text": "確定",
+                "data": "event=set_user_setting.reset_everything_for_sure",
+                "color": "#FA4A4D",
+            },
+            {
+                "type": "message",
+                "text": "取消",
+                "color": "#979797",
+            },
+        ),
     )
     return msg
 
@@ -145,117 +134,49 @@ def guide_template():
 
 
 def user_setting_template(setting: Setting):
-    msg = FlexSendMessage(
-        alt_text="偏好設定",
-        contents={
-            "type": "bubble",
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": [
-                    {
-                        "type": "text",
-                        "text": "偏好設定",
-                        "weight": "bold",
-                        "size": "xl",
-                    }
-                ],
+    msg = button_msg(
+        title="偏好設定",
+        button_list=(
+            {
+                "type": "postback",
+                "text": negation_text(setting.send_by_twsms) + "簡訊代發",
+                "data": "event=set_user_setting"
+                + "&send_by_twsms="
+                + negation(setting.send_by_twsms),
             },
-            "footer": {
-                "type": "box",
-                "layout": "vertical",
-                "spacing": "sm",
-                "contents": [
-                    {
-                        "type": "button",
-                        "style": "link",
-                        "height": "sm",
-                        "action": {
-                            "type": "postback",
-                            "label": negation_text(setting.send_by_twsms)
-                            + "簡訊代發",
-                            "data": "event=set_user_setting"
-                            + "&send_by_twsms="
-                            + negation(setting.send_by_twsms),
-                            "displayText": negation_text(setting.send_by_twsms)
-                            + "簡訊代發",
-                        },
-                    },
-                    {
-                        "type": "button",
-                        "style": "link",
-                        "height": "sm",
-                        "action": {
-                            "type": "postback",
-                            "label": negation_text(
-                                setting.ask_for_license_plates
-                            )
-                            + "詢問輸入車牌",
-                            "data": "event="
-                            + "set_user_setting"
-                            + "&ask_for_license_plates="
-                            + negation(setting.ask_for_license_plates),
-                            "displayText": negation_text(
-                                setting.ask_for_license_plates
-                            )
-                            + "詢問輸入車牌",
-                        },
-                    },
-                    {
-                        "type": "button",
-                        "style": "link",
-                        "height": "sm",
-                        "action": {
-                            "type": "postback",
-                            "label": negation_text(setting.ask_for_images)
-                            + "詢問上傳照片",
-                            "data": "event=set_user_setting"
-                            + "&ask_for_images="
-                            + negation(setting.ask_for_images),
-                            "displayText": negation_text(
-                                setting.ask_for_images
-                            )
-                            + "詢問上傳照片",
-                        },
-                    },
-                    {
-                        "type": "button",
-                        "style": "link",
-                        "height": "sm",
-                        "action": {
-                            "type": "postback",
-                            "label": "編輯簡訊簽名檔",
-                            "data": "event=set_user_setting.signature",
-                            "displayText": "編輯簡訊簽名檔",
-                        },
-                    },
-                    {
-                        "type": "button",
-                        "style": "link",
-                        "height": "sm",
-                        "action": {
-                            "type": "postback",
-                            "label": "重設台灣簡訊帳號密碼",
-                            "data": "event=set_user_setting.reset_twsms",
-                            "displayText": "重設台灣簡訊帳號密碼",
-                        },
-                    },
-                    {
-                        "type": "button",
-                        "style": "primary",
-                        "height": "sm",
-                        "action": {
-                            "type": "postback",
-                            "label": "重置所有設定",
-                            "data": "event=set_user_setting.reset_everything",
-                            "displayText": "重置所有設定",
-                        },
-                        "color": "#FA4A4D",
-                    },
-                ],
-                "flex": 0,
+            {
+                "type": "postback",
+                "text": negation_text(setting.ask_for_license_plates)
+                + "詢問輸入車牌",
+                "data": "event=set_user_setting"
+                + "&ask_for_license_plates="
+                + negation(setting.ask_for_license_plates),
             },
-        },
+            {
+                "type": "postback",
+                "text": negation_text(setting.ask_for_images) + "詢問上傳照片",
+                "data": "event=set_user_setting"
+                + "&ask_for_images="
+                + negation(setting.ask_for_images),
+            },
+            {
+                "type": "postback",
+                "text": "編輯簡訊簽名檔",
+                "data": "event=set_user_setting.signature",
+            },
+            {
+                "type": "postback",
+                "text": "重設台灣簡訊帳號密碼",
+                "data": "event=set_user_setting.reset_twsms",
+            },
+            {
+                "style": "primary",
+                "type": "postback",
+                "text": "重置所有設定",
+                "data": "event=set_user_setting.reset_everything",
+                "color": "#FA4A4D",
+            },
+        ),
     )
     return msg
 

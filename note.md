@@ -1,5 +1,17 @@
 # note
 
+## flask doc
+
+- sessions
+  - <https://flask.palletsprojects.com/en/2.1.x/quickstart/>
+  - "How to generate good secret keys"
+
+## 給明天的我
+
+- 正在 refactor
+- 看 doc tutorial
+- <https://flask.palletsprojects.com/en/2.1.x/tutorial/install/>
+
 ## TODO
 
 - instructions
