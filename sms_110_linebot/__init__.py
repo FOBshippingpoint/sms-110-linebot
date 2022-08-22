@@ -18,23 +18,23 @@ def create_app(test_config=None):
         # load the test config if passed in
         app.config.from_mapping(test_config)
 
+    app.config.update(
+        SESSION_COOKIE_SAMESITE="None",
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_DOMAIN=".customDomain.com",
+    )
+
     # ensure the instance folder exists
     try:
         os.makedirs(os.path.join(app.instance_path, "static", "tmp"))
     except OSError:
         pass
 
-    # a simple page that says hello
-    @app.route("/hello")
-    def hello():
-        return "Hello, World!"
+    with app.app_context():
+        from sms_110_linebot import db
 
-    # register the database commands
-    from sms_110_linebot import db
+        db.init_db()
 
-    db.init_app(app)
-
-    # apply the blueprints to the app
     from sms_110_linebot import bot
 
     app.register_blueprint(bot.bp)

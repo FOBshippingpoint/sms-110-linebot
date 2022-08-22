@@ -1,6 +1,7 @@
 from collections import defaultdict
 from flask import Blueprint, current_app, request, abort, g, session
 from urllib import parse
+import jsonpickle
 from linebot.exceptions import LineBotApiError, InvalidSignatureError
 from linebot.models import (
     MessageEvent,
@@ -14,12 +15,12 @@ from linebot.models import (
 import os
 import tempfile
 from threading import Thread
-from models.user_session import (
+from sms_110_linebot.models.user_session import (
     Report,
     UserSession,
     Setting as UserSessionSetting,
 )
-from msg_template import (
+from sms_110_linebot.msg_template import (
     are_you_sure_to_reset_everything_template,
     guide_template,
     menu_template,
@@ -36,17 +37,17 @@ from sms_110_linebot.utils import (
     get_next_report_action,
     create_sms_msg,
 )
-from twsms_client import TwsmsClient
-from config import Config
-from shorten_msg import (
+from sms_110_linebot.twsms_client import TwsmsClient
+from sms_110_linebot.config import Config
+from sms_110_linebot.shorten_msg import (
     push_many_msg,
     text_msg,
     text_postback_msg,
     text_quick_msg,
 )
-from sms_110_linebot.db import User, Setting, Mobile
+from sms_110_linebot.db import User, Mobile, Setting
 
-bp = Blueprint("bot", __name__, url_prefix="/callback")
+bp = Blueprint("bot", __name__)
 
 
 config = Config()
@@ -58,7 +59,6 @@ parser = config.parser
 CAR_TYPES = config.CAR_TYPES
 CAR_NUMS = config.CAR_NUMS
 SITUATIONS = config.SITUATIONS
-STATIC_TEMP_PATH = current_app.config["STATIC_TEMP_PATH"]
 
 
 def get_mobiles():
@@ -68,9 +68,6 @@ def get_mobiles():
     return mobiles
 
 
-MOBILES = get_mobiles()
-
-
 def get_data_from_event(event):
     """Returns (user_id, text, user_session) from event.
 
@@ -78,16 +75,27 @@ def get_data_from_event(event):
     """
     user_id = event.source.user_id
     text = None
-    if user_id not in session:
+    print(session)
+    if user_id in session:
+        print("\n\nuser_id in session\n\n", session[user_id])
+        user_session = jsonpickle.decode(session[user_id])
+    else:
         user, created = User.get_or_create(user_id=user_id)
         if created:
             Setting.create(user_id=user_id)
-            session[user_id] = UserSession()
-            session[user_id].action = "welcome"
+            user_session = UserSession()
+            user_session.action = "welcome"
+            session[user_id] = jsonpickle.encode(user_session)
         else:
             setting = Setting.get(Setting.user_id == user_id)
+            setting = UserSessionSetting(
+                send_by_twsms=setting.send_by_twsms,
+                ask_for_license_plates=setting.ask_for_license_plates,
+                ask_for_images=setting.ask_for_images,
+                signature=setting.signature,
+            )
             if setting.send_by_twsms:
-                session[user_id] = UserSession(
+                user_session = UserSession(
                     username=user.twsms_username,
                     password=user.twsms_password,
                     twsms_client=TwsmsClient(
@@ -95,13 +103,17 @@ def get_data_from_event(event):
                     ),
                     setting=setting,
                 )
+                session[user_id] = jsonpickle.encode(user_session)
             else:
-                session[user_id] = UserSession(
+                user_session = UserSession(
                     username=user.twsms_username,
                     password=user.twsms_password,
                     setting=setting,
                 )
-    user_session = session[user_id]
+                session[user_id] = jsonpickle.encode(user_session)
+    session[user_id] = "hello"
+    session.permanent = True
+    print(session)
 
     if isinstance(event, MessageEvent):
         if isinstance(event.message, TextMessage):
@@ -110,12 +122,12 @@ def get_data_from_event(event):
     return (user_id, text, user_session)
 
 
-@bp.route("/", methods=["POST"])
+@bp.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers["X-Line-Signature"]
 
     body = request.get_data(as_text=True)
-    bp.logger.info("Request body: " + body)
+    # current_app.logger.info("Request body: " + body)
 
     try:
         # Set g data(user_id, text, user_session) from event
@@ -384,7 +396,7 @@ def upload_image_and_reply(message_content, user_id, user_session):
     """Upload image to imgur and push message to user."""
     ext = "jpg"
     with tempfile.NamedTemporaryFile(
-        dir=STATIC_TEMP_PATH,
+        dir=current_app.config["STATIC_TEMP_PATH"],
         prefix=ext + "-",
         delete=False,
     ) as tf:
@@ -414,10 +426,13 @@ def upload_image_and_reply(message_content, user_id, user_session):
 def handle_location(event):
     user_session = g.user_session
     action = user_session.action
+    print(jsonpickle.encode(user_session))
 
     if action == "report.address":
         address = event.message.address
-        result = find_police_department_mobile_by_address(MOBILES, address)
+        result = find_police_department_mobile_by_address(
+            get_mobiles(), address
+        )
         if result is None:
             user_session.action = ""
             msg = text_msg("您的所在位置無法使用簡訊報案功能")

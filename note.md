@@ -1,30 +1,23 @@
 # note
 
-## flask doc
-
-- sessions
-  - <https://flask.palletsprojects.com/en/2.1.x/quickstart/>
-  - "How to generate good secret keys"
-
 ## 給明天的我
 
 - 正在 refactor
 - 看 doc tutorial
+- "How to generate good secret keys"
 - <https://flask.palletsprojects.com/en/2.1.x/tutorial/install/>
 
 ## TODO
 
 - instructions
-  - (should as clear as possible
+  - i will write wiki for that.
 - bugs report
 - store address, image links for further use.
-- doc
+- legal
   - privacy policy
   - terms of use
 - ?
   - UserSession.username & UserSession.password may not need.
-- bug
-  - 車牌 跳過
 
 ```python
 # legacy

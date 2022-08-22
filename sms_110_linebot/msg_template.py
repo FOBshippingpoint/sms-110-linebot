@@ -7,7 +7,7 @@ from linebot.models import (
     MessageAction,
     LocationAction,
 )
-from config import Config
+from sms_110_linebot.config import Config
 from sms_110_linebot.models.user_session import Setting
 from sms_110_linebot.shorten_msg import text_msg, button_msg
 
@@ -36,7 +36,7 @@ def welcome_template():
                 },
                 {
                     "type": "postback",
-                    "label": "我要用自己的門號發送簡訊",
+                    "text": "我要用自己的門號發送簡訊",
                     "data": "event=send_by_myself",
                 },
             ),

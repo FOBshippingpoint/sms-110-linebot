@@ -1,6 +1,4 @@
-import click
 from flask import current_app
-from flask.cli import with_appcontext
 from peewee import (
     SqliteDatabase,
     CharField,
@@ -12,12 +10,12 @@ from peewee import (
 from sms_110_linebot.sms_num_crawler import crawl_mobiles
 
 
-database = SqliteDatabase(current_app.config["DATABASE"])
+db = SqliteDatabase(current_app.config["DATABASE"])
 
 
 class BaseModel(Model):
     class Meta:
-        database = database
+        database = db
 
 
 class User(BaseModel):
@@ -39,13 +37,9 @@ class Setting(BaseModel):
     signature = CharField(default="")
 
 
-def create_tables():
-    """Create tables."""
-    with database:
-        database.create_tables([User, Mobile, Setting])
+def init_db():
+    db.create_tables([User, Mobile, Setting])
 
-
-def init_mobiles():
     for police_department, sms_number in crawl_mobiles():
         mobile = Mobile.get_or_none(
             Mobile.police_department == police_department
@@ -57,19 +51,3 @@ def init_mobiles():
         elif mobile.sms_number != mobile:
             mobile.sms_number = mobile
             mobile.save()
-
-
-@click.command("init-db")
-@with_appcontext
-def init_db_command():
-    create_tables()
-    init_mobiles()
-    click.echo("Initialized the database.")
-
-
-def init_app(app):
-    """Register database functions with the Flask app. This is called by
-    the application factory.
-    """
-    # app.teardown_appcontext(close_db)
-    app.cli.add_command(init_db_command)
