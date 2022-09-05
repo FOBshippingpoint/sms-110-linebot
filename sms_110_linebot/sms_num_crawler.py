@@ -1,15 +1,15 @@
 from bs4 import BeautifulSoup
 import requests
+import re
 
 
 def crawl_mobiles():
-    url = 'https://www.npa.gov.tw/ch/app/openData/artwebsite/data?module=artwebsite&serno=d08673f4-0775-4a09-b4d8-d47c2c4edca2&type=json'
+    url = 'https://www.npa.gov.tw/ch/app/artwebsite/view?module=artwebsite&id=1048&serno=e3ad2889-4dee-41cf-aef8-9b9d26dc6950'
     res = requests.get(url)
-    html = res.json()['detailContent']
-    soup = BeautifulSoup(html, 'html.parser')
+    soup = BeautifulSoup(res.text, 'html.parser')
     police_departments = [tag.text for tag in soup.find_all(
         'td', attrs={'data-th': '單位'})]
-    numbers = [tag.text.replace('-', '') for tag in soup.find_all(
-        'td', attrs={'data-th': '手機簡訊報案號碼'})]
+    numbers = [re.sub('\(|\)|-|\s', '', tag.text) for tag in soup.find_all(
+        'td', attrs={'data-th': '電話'})]
     numbers = list(zip(police_departments, numbers))
     return numbers
