@@ -1,7 +1,5 @@
-from collections import defaultdict
-from flask import Blueprint, current_app, request, abort, g, session
 from urllib import parse
-import jsonpickle
+from flask import Blueprint, current_app, request, abort, g
 from linebot.exceptions import LineBotApiError, InvalidSignatureError
 from linebot.models import (
     MessageEvent,
@@ -11,7 +9,7 @@ from linebot.models import (
     LocationMessage,
     ImageMessage,
 )
-
+from collections import defaultdict
 import os
 import tempfile
 from threading import Thread
@@ -60,6 +58,7 @@ CAR_TYPES = config.CAR_TYPES
 CAR_NUMS = config.CAR_NUMS
 SITUATIONS = config.SITUATIONS
 
+session = defaultdict(lambda: None)
 
 def get_mobiles():
     mobiles = {}
@@ -75,17 +74,14 @@ def get_data_from_event(event):
     """
     user_id = event.source.user_id
     text = None
-    print(session)
     if user_id in session:
-        print("\n\nuser_id in session\n\n", session[user_id])
-        user_session = jsonpickle.decode(session[user_id])
+        user_session = session[user_id]
     else:
         user, created = User.get_or_create(user_id=user_id)
         if created:
             Setting.create(user_id=user_id)
             user_session = UserSession()
             user_session.action = "welcome"
-            session[user_id] = jsonpickle.encode(user_session)
         else:
             setting = Setting.get(Setting.user_id == user_id)
             setting = UserSessionSetting(
@@ -103,24 +99,19 @@ def get_data_from_event(event):
                     ),
                     setting=setting,
                 )
-                session[user_id] = jsonpickle.encode(user_session)
             else:
                 user_session = UserSession(
                     username=user.twsms_username,
                     password=user.twsms_password,
                     setting=setting,
                 )
-                session[user_id] = jsonpickle.encode(user_session)
-    session[user_id] = "hello"
-    session.permanent = True
-    print(session)
+        session[user_id] = user_session
 
     if isinstance(event, MessageEvent):
         if isinstance(event.message, TextMessage):
             text = event.message.text
 
     return (user_id, text, user_session)
-
 
 @bp.route("/callback", methods=["POST"])
 def callback():
@@ -236,6 +227,7 @@ def handle_message(event):
     # 報案過程
     elif action.startswith("report"):
         next_action = get_next_report_action(action, setting)
+        print('>>>nextaction', next_action)
         report = user_session.report
         # 車種
         if action == "report.car_type":
@@ -303,26 +295,18 @@ def handle_message(event):
             if text == "跳過" or text == "完成":
                 user_session.action = next_action
                 report.sms_msg = create_sms_msg(report, setting.signature)
-
-                msg = confirm_send_sms_template(
-                    police_department=report.police_department,
-                    mobile=report.mobile,
-                    sms_msg=report.sms_msg,
-                )
-            elif next_action == "report.preview":
-                report.sms_msg = create_sms_msg(report, setting.signature)
-                msg = confirm_send_sms_template(
-                    police_department=report.police_department,
-                    mobile=report.mobile,
-                    sms_msg=report.sms_msg,
-                )
-            elif next_action == "report.copy":
-                msg = report.sms_msg
-                line_bot_api.reply_message(event.reply_token, msg)
-                msg = text_msg("以上是報案助手為您產生的報案簡訊，按住訊息可以複製內容")
-                line_bot_api.push_message(user_id, msg)
-                return
-            line_bot_api.reply_message(event.reply_token, msg)
+                if next_action == "report.preview":
+                    msg = confirm_send_sms_template(
+                        police_department=report.police_department,
+                        mobile=report.mobile,
+                        sms_msg=report.sms_msg,
+                    )
+                    line_bot_api.reply_message(event.reply_token, msg)
+                elif next_action == "report.copy":
+                    msg = text_msg(report.sms_msg)
+                    line_bot_api.reply_message(event.reply_token, msg)
+                    msg = text_msg("以上是報案助手為您產生的報案簡訊，按住訊息可以複製內容")
+                    line_bot_api.push_message(user_id, msg)
         elif action == "report.preview":
             if text == "發送" or text == "重新發送":
                 twsms = user_session.twsms_client
@@ -426,7 +410,6 @@ def upload_image_and_reply(message_content, user_id, user_session):
 def handle_location(event):
     user_session = g.user_session
     action = user_session.action
-    print(jsonpickle.encode(user_session))
 
     if action == "report.address":
         address = event.message.address
@@ -528,7 +511,7 @@ def handle_postback(event):
             line_bot_api.reply_message(event.reply_token, msg)
             Thread(
                 target=delete_user_data_and_reply,
-                args=(user_id),
+                args=(user_id,),
                 daemon=True,
             ).start()
             return
@@ -621,6 +604,7 @@ def send_sms_msg_and_reply(user_id, twsms, mobile, sms_msg):
 
 def save_setting(user_id, session_setting: UserSessionSetting):
     setting = Setting.get(Setting.user_id == user_id)
+    setting.send_by_twsms = session_setting.send_by_twsms
     setting.ask_for_license_plates = session_setting.ask_for_license_plates
     setting.ask_for_images = session_setting.ask_for_images
     setting.signature = session_setting.signature
@@ -634,7 +618,7 @@ def delete_user_data_and_reply(user_id):
     setting = Setting.get_or_none(Setting.user_id == user_id)
     if setting is not None:
         setting.delete_instance()
-    session.pop("user_id", None)
+    session.pop(user_id, None)
 
     msg = text_msg("已重置")
     line_bot_api.push_message(user_id, msg)

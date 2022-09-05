@@ -48,6 +48,6 @@ def init_db():
             Mobile.create(
                 police_department=police_department, sms_number=sms_number
             )
-        elif mobile.sms_number != mobile:
-            mobile.sms_number = mobile
+        elif mobile.sms_number != sms_number:
+            mobile.sms_number = sms_number
             mobile.save()

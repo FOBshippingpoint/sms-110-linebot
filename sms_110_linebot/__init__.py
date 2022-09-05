@@ -1,15 +1,12 @@
 import os
 from flask import Flask
+from flask_session import Session
 
+sess = Session()
 
 def create_app(test_config=None):
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
-    app.config.from_mapping(
-        SECRET_KEY="dev",
-        DATABASE=os.path.join(app.instance_path, "pw_data.db"),
-        STATIC_TEMP_PATH=os.path.join(app.instance_path, "static", "tmp"),
-    )
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
@@ -19,10 +16,13 @@ def create_app(test_config=None):
         app.config.from_mapping(test_config)
 
     app.config.update(
-        SESSION_COOKIE_SAMESITE="None",
-        SESSION_COOKIE_SECURE=True,
-        SESSION_COOKIE_DOMAIN=".customDomain.com",
+        SECRET_KEY="192b9bdd22ab9ed4d12e236c78afcb9a393ec15f71bbf5dc987d54727823bcbf",
+        SESSION_TYPE="filesystem",
+        DATABASE=os.path.join(app.instance_path, "pw_data.db"),
+        STATIC_TEMP_PATH=os.path.join(app.instance_path, "static", "tmp"),
     )
+    print(app.config['SESSION_COOKIE_SAMESITE'])
+    sess.init_app(app)
 
     # ensure the instance folder exists
     try:

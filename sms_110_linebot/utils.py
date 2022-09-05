@@ -2,6 +2,7 @@ from sms_110_linebot.models.user_session import Setting as UserSessionSetting
 
 
 def get_next_report_action(current_action, setting: UserSessionSetting):
+    print('send by twsms', setting.send_by_twsms)
     if current_action == "report.address":
         return "report.car_type"
     elif current_action == "report.car_type":
@@ -37,7 +38,7 @@ def get_next_report_action(current_action, setting: UserSessionSetting):
 
 
 def find_police_department_mobile_by_address(mobiles, address):
-    for police_department, mobile in mobiles.items():
+    for police_department, sms_number in mobiles.items():
         # 地區是警局名稱前二字
         location = police_department[:2]
         if location in address or location.replace("臺", "台") in address:
@@ -46,14 +47,14 @@ def find_police_department_mobile_by_address(mobiles, address):
                 address,
                 ", match: ",
                 police_department,
-                mobile,
+                sms_number,
             )
 
             word = "台灣"
             from_ = address.find(word)
             if from_ != -1:
                 address = address[from_ + len(word) :]
-            return police_department, mobile, address
+            return police_department, sms_number, address
 
 
 def create_sms_msg(report, signature):
