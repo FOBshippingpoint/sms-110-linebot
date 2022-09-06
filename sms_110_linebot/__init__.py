@@ -16,12 +16,9 @@ def create_app(test_config=None):
         app.config.from_mapping(test_config)
 
     app.config.update(
-        SECRET_KEY="192b9bdd22ab9ed4d12e236c78afcb9a393ec15f71bbf5dc987d54727823bcbf",
-        SESSION_TYPE="filesystem",
         DATABASE=os.path.join(app.instance_path, "pw_data.db"),
         STATIC_TEMP_PATH=os.path.join(app.instance_path, "static", "tmp"),
     )
-    print(app.config['SESSION_COOKIE_SAMESITE'])
     sess.init_app(app)
 
     # ensure the instance folder exists

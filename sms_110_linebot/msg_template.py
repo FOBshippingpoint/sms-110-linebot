@@ -21,8 +21,9 @@ def welcome_template():
     messages = [
         text_msg("您好，歡迎使用簡訊違停報案助手"),
         text_msg("我的任務是幫助您輕鬆用簡訊向警方報案違規停車"),
+        text_msg("使用前請詳閱本服務的隱私權條款：https://github.com/FOBshippingpoint/sms-110-linebot/wiki/%E9%9A%B1%E7%A7%81%E6%AC%8A%E6%A2%9D%E6%AC%BE"),
         text_msg(
-            '在使用前您必須先申請"台灣簡訊"帳號，申請帳號請點選：https://www.twsms.com/accjoin.php'
+            '如果您需要使用簡訊代發服務，必須先申請"台灣簡訊"帳號，申請帳號請點選：https://www.twsms.com/accjoin.php'
         ),
         text_msg("台灣簡訊是一個能幫助您代發簡訊的付費服務，透過簡訊代發警方無法得知您的電話號碼"),
         text_msg("您也可以選擇透過自己的門號發送簡訊，由我替您快速生成報案簡訊"),
@@ -31,12 +32,12 @@ def welcome_template():
             button_list=(
                 {
                     "type": "postback",
-                    "text": "我已經有帳號了",
+                    "text": "我接受隱私權條款，使用簡訊代發",
                     "data": "event=already_had_account",
                 },
                 {
                     "type": "postback",
-                    "text": "我要用自己的門號發送簡訊",
+                    "text": "我接受隱私權條款，我要自行發送",
                     "data": "event=send_by_myself",
                 },
             ),
@@ -265,7 +266,7 @@ def confirm_twsms_template(username, password):
                         "action": {
                             "type": "postback",
                             "label": "正確",
-                            "data": "event=confirm_twsms.correct"
+                            "data": "event=confirm_twsms.correct&"
                             + f"username={username}&"
                             + f"password={password}",
                             "displayText": "正確",

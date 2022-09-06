@@ -2,7 +2,6 @@ from sms_110_linebot.models.user_session import Setting as UserSessionSetting
 
 
 def get_next_report_action(current_action, setting: UserSessionSetting):
-    print('send by twsms', setting.send_by_twsms)
     if current_action == "report.address":
         return "report.car_type"
     elif current_action == "report.car_type":
@@ -16,13 +15,13 @@ def get_next_report_action(current_action, setting: UserSessionSetting):
         return "report.situation"
     elif current_action == "report.situation":
         if setting.ask_for_images:
-            return "report.upload_image"
+            return "report.upload_images"
         else:
             if setting.send_by_twsms:
                 return "report.preview"
             else:
                 return "report.copy"
-    elif current_action == "report.upload_image":
+    elif current_action == "report.upload_images":
         if setting.send_by_twsms:
             return "report.preview"
         else:
@@ -67,7 +66,7 @@ def create_sms_msg(report, signature):
         sms_msg += "，車牌號碼" + "、".join(report.license_plates)
     if report.image_links:
         # white space can split links highlighting in LINE.
-        sms_msg += "，附圖連結" + " 、".join(report.image_links)
+        sms_msg += "，附圖連結：" + " 、".join(report.image_links)
         sms_msg += " ，請派員處理。"
     else:
         sms_msg += "，請派員處理。"

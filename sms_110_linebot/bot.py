@@ -161,16 +161,13 @@ def handle_message(event):
     setting = user_session.setting
 
     if text == "設定":
+        user_session.action = ""
         msg = user_setting_template(setting)
         line_bot_api.reply_message(event.reply_token, msg)
     elif text == "說明":
+        user_session.action = ""
         msg = guide_template()
         line_bot_api.reply_message(event.reply_token, msg)
-    elif text.startswith("broadcast:"):
-        # broadcast message
-        # ! 測試用
-        broadcast_message = text[10:]
-        line_bot_api.broadcast(text_msg(broadcast_message))
     elif action == "welcome":
         user_session.action = ""
         messages = welcome_template()
@@ -227,7 +224,6 @@ def handle_message(event):
     # 報案過程
     elif action.startswith("report"):
         next_action = get_next_report_action(action, setting)
-        print('>>>nextaction', next_action)
         report = user_session.report
         # 車種
         if action == "report.car_type":
@@ -270,7 +266,7 @@ def handle_message(event):
             if text in SITUATIONS:
                 report.situation = text
 
-                if next_action == "report.upload_image":
+                if next_action == "report.upload_images":
                     msg = text_quick_msg('請上傳照片或輸入"跳過"', ["跳過"])
                 elif next_action == "report.preview":
                     report.sms_msg = create_sms_msg(report, setting.signature)
@@ -280,9 +276,9 @@ def handle_message(event):
                         sms_msg=report.sms_msg,
                     )
                 elif next_action == "report.copy":
-                    msg = report.sms_msg
+                    msg = text_msg(report.sms_msg)
                     line_bot_api.reply_message(event.reply_token, msg)
-                    msg = text_msg("以上是報案助手為您產生的報案簡訊，按住訊息可以複製內容")
+                    msg = text_msg("以上是報案助手為您產生的報案簡訊，按住訊息可以複製內容，自行傳送至：" + report.mobile)
                     line_bot_api.push_message(user_id, msg)
                     return
             else:
@@ -291,11 +287,11 @@ def handle_message(event):
                 )
 
             line_bot_api.reply_message(event.reply_token, msg)
-        elif action == "report.upload_image":
+        elif action == "report.upload_images":
             if text == "跳過" or text == "完成":
-                user_session.action = next_action
                 report.sms_msg = create_sms_msg(report, setting.signature)
                 if next_action == "report.preview":
+                    user_session.action = next_action
                     msg = confirm_send_sms_template(
                         police_department=report.police_department,
                         mobile=report.mobile,
@@ -303,9 +299,10 @@ def handle_message(event):
                     )
                     line_bot_api.reply_message(event.reply_token, msg)
                 elif next_action == "report.copy":
+                    user_session.action = ""
                     msg = text_msg(report.sms_msg)
                     line_bot_api.reply_message(event.reply_token, msg)
-                    msg = text_msg("以上是報案助手為您產生的報案簡訊，按住訊息可以複製內容")
+                    msg = text_msg("以上是報案助手為您產生的報案簡訊，按住訊息可以複製內容，自行傳送至：" + report.mobile)
                     line_bot_api.push_message(user_id, msg)
         elif action == "report.preview":
             if text == "發送" or text == "重新發送":
@@ -371,16 +368,16 @@ def handle_image(event):
         line_bot_api.reply_message(event.reply_token, text_msg("上傳中..."))
         Thread(
             target=upload_image_and_reply,
-            args=(message_content, user_id, user_session),
+            args=(message_content, user_id, user_session, current_app.config["STATIC_TEMP_PATH"]),
             daemon=True,
         ).start()
 
 
-def upload_image_and_reply(message_content, user_id, user_session):
+def upload_image_and_reply(message_content, user_id, user_session, static_temp_path):
     """Upload image to imgur and push message to user."""
     ext = "jpg"
     with tempfile.NamedTemporaryFile(
-        dir=current_app.config["STATIC_TEMP_PATH"],
+        dir=static_temp_path,
         prefix=ext + "-",
         delete=False,
     ) as tf:
@@ -454,6 +451,8 @@ def handle_postback(event):
             line_bot_api.reply_message(event.reply_token, msg)
     elif my_event.startswith("confirm_twsms"):
         # 正確
+        print('my_event', my_event)
+        print(data)
         if my_event == "confirm_twsms.correct":
             user_session.action = ""
             twsms = TwsmsClient(
@@ -568,7 +567,7 @@ def validate_twsms_and_reply(user_id, username, password, twsms):
         user.twsms_password = password
         user.save()
     elif r["error"] == "帳號或密碼錯誤":
-        msg = text_quick_msg(
+        msg = text_postback_msg(
             '您的台灣簡訊帳號密碼有誤，請"重新輸入"',
             [("重新輸入", "event=set_user_setting.reset_twsms")],
         )
@@ -592,6 +591,7 @@ def get_balance_and_reply(user_id, twsms):
 
 
 def send_sms_msg_and_reply(user_id, twsms, mobile, sms_msg):
+    # currently send to my phone
     r = twsms.send_message(sms_msg, config.phone_number)
     if r["success"]:
         msg = text_msg("報案簡訊發送成功！")
