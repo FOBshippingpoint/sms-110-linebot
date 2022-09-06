@@ -1,10 +1,11 @@
 # 簡訊違停報案助手
 
+This is a linebot project that can send illegal parking sms to police department.
+
 ## Requirements
 
 - poetry installed
-- sign up a line developer username
-- set your own CHANNEL*ACCESS_TOKEN and CHANNEL_SECRET in \_config.ini*
+- create a LINE Messaging API
 - sign up ngrok
 
 ## Development
@@ -14,21 +15,16 @@ poetry install # install dependencies
 ```
 
 ```sh
-poetry run python sms_110_linebot/app.py
+FLASK_ENV=developement/
+FLASK_DEBUG=TRUE /
+poetry run flask run # run flask app
 ```
 
 ```sh
-ngrok http 8000 # put localhost on the internet, you can change port number in app.py
+ngrok http 8000 # put localhost on the internet
 ```
 
-Set your linebot webhook address to ngrok address and have fun!
-
-## Todo
-
-- delete expired users
-- edit message
-- create message template
-- ...
+Set your linebot webhook address(remember to append '/callback' at end) to ngrok address and have fun!
 
 ## Authors
 

@@ -1,8 +1,6 @@
-Dockerfile
 *.db
 *.env*
 **/static
-config.ini
 .vscode
 
 # Byte-compiled / optimized / DLL files
