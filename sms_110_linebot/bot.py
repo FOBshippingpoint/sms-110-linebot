@@ -592,7 +592,8 @@ def get_balance_and_reply(user_id, twsms):
 
 def send_sms_msg_and_reply(user_id, twsms, mobile, sms_msg):
     # currently send to my phone
-    r = twsms.send_message(sms_msg, config.phone_number)
+    # r = twsms.send_message(sms_msg, config.phone_number)
+    r = twsms.send_message(sms_msg, mobile)
     if r["success"]:
         msg = text_msg("報案簡訊發送成功！")
     else:
