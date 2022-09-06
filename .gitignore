@@ -1,5 +1,6 @@
+Dockerfile
 *.db
-*.env
+*.env*
 **/static
 config.ini
 .vscode

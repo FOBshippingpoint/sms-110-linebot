@@ -41,14 +41,6 @@ def find_police_department_mobile_by_address(mobiles, address):
         # 地區是警局名稱前二字
         location = police_department[:2]
         if location in address or location.replace("臺", "台") in address:
-            print(
-                "address: ",
-                address,
-                ", match: ",
-                police_department,
-                sms_number,
-            )
-
             word = "台灣"
             from_ = address.find(word)
             if from_ != -1:

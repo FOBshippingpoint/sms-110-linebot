@@ -1,8 +1,5 @@
 import os
 from flask import Flask
-from flask_session import Session
-
-sess = Session()
 
 def create_app(test_config=None):
     # create and configure the app
@@ -19,7 +16,6 @@ def create_app(test_config=None):
         DATABASE=os.path.join(app.instance_path, "pw_data.db"),
         STATIC_TEMP_PATH=os.path.join(app.instance_path, "static", "tmp"),
     )
-    sess.init_app(app)
 
     # ensure the instance folder exists
     try:
